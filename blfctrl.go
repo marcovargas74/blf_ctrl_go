@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log/syslog"
 	"os"
+	"time"
 
+	"github.com/marcovargas74/blf_ctrl_go/comm"
 	"github.com/marcovargas74/blf_ctrl_go/general"
 	"github.com/marcovargas74/blf_ctrl_go/includes"
 )
@@ -13,9 +15,7 @@ import (
 var AppCtrl includes.TApp
 
 func init() {
-	//define.App_ctrl App
-	//LOOP_Main := TRUE
-	//Pids_Threads tStatusPIDVoIP           //NUmro dos Pids das thread usados no debbuger
+	AppCtrl.LOOPMain = true
 	general.Clear()
 	general.StartLogger(true)
 	fmt.Println("======== Start Aplication blf_control Version " + includes.Version + "========")
@@ -61,13 +61,10 @@ func trataComandosVindoDoLinux() {
 /* Funcao Inivial
  */
 func main() {
-	//extern BOOL PABXCOMMConnected;
-	//	status int ;
-	//	struct sigaction sig_app;
-	//int count_LOOP = 0;
-	//byte count_30s  = 0;  //Contador de 30 segundos
-	//uLong count_1MIN = 0; //Contador de minuto
-	//int ret_thread;
+	//var count30s byte    //Contador de 30 segundos
+	var countLOOP uint64 //Contador de minuto
+	var count1MIN uint64 //Contador de minuto
+
 	general.BoostPriority(includes.THREADPRIOMAIN)
 	trataComandosVindoDoLinux()
 	AppCtrl.PidMain = os.Getpid()
@@ -77,28 +74,53 @@ func main() {
 
 	//=========================== INICIALIZAÇÃO DE COMUNICAÇÂO COM PABX ==================
 	general.AppSyslog(syslog.LOG_INFO, "%s {Carrega a thread de comunicacao com oPABXCOMM_socket}\n", general.ThisFunction())
-	//ret_thread = pthread_create(&App_ctrl.router_thread, NULL, &PABXCOMM_socket, NULL);
-	/*
-		if (ret_thread)
-			  {
-				app_syslog(LOG_ERR,"%s->%s(){FATAL ERROR->pthread_create}<error>[%d]", __THIS_FILE__, ret_thread );
-				return ERROR;       //Termina Aplicação
-			  }
 
-				 if( Aguarda_comunicacao_com_PABX() != SUCCESS)
-				   return ERROR;       //Termina Aplicação
+	//Chama a thread de comunicacao com o Remoto .
+	go comm.RemoteCOMMsocket(&AppCtrl.PidRemoteSocket, &AppCtrl.PABXCOMMConnected, &AppCtrl.KillApplication)
 
-			  #if ICIP_MOD_DEBUG && EXECUTE_TDD
-				 //Executa TESTE
-				  ExecutaTestesFinais();
-			  #endif
-				  app_syslog(LOG_DEBUG,"%s->%s(){LOOP_MAIN!!!}", __THIS_FILE__ );
-				  while (LOOP_Main)
-					 {
-						//Executa Timer
-						Executa_Timer_Control(&count_LOOP, &count_30s, &count_1MIN);
-					 }
-				   return SUCCESS;
-	*/
+	//Aguarda Se conectar com o Remoto
+	retComm := comm.AguardaComunicacaoComRemoto(&AppCtrl.PABXCOMMConnected, &AppCtrl.LOOPMain)
+	if retComm != 0 {
+		general.AppSyslog(syslog.LOG_INFO, "%s {FATAL ERROR->Falha na comunicacao com Remoto}<error>[%d]\n", general.ThisFunction(), retComm)
+		return //Termina Aplicação
+	}
+
+	general.AppSyslog(syslog.LOG_INFO, "%s {START LOOP_MAIN!!!}\n", general.ThisFunction())
+	for {
+		executaTimerControl(&countLOOP, &count1MIN)
+		//Termina caso App mandou terminar
+		if AppCtrl.LOOPMain == false {
+			break
+		}
+	} //for
+
+	general.AppSyslog(syslog.LOG_DEBUG, "%s {FINISH LOOP_MAIN }\n", general.ThisFunction())
 
 }
+
+/*
+ *
+ */
+//func executaTimerControl(ptrCountLOOP *uint64, ptrCount30s *byte, ptrCount1MIN *uint64) {
+func executaTimerControl(ptrCountLOOP *uint64, ptrCount1MIN *uint64) {
+	/*time.Sleep(time.Second * 30)
+	//a cada 30segundos
+	general.AppSyslog(syslog.LOG_DEBUG, "%s LOOP 30seg..[%d]min\n", general.ThisFunction(), *ptrCount30s)
+
+	*ptrCount30s ^= 1     //Alterana 0 e 1
+	if *ptrCount30s > 0 { //Se 30 segundos igual a 1
+		return
+	}
+	*/
+	// 1 minuto
+	time.Sleep(time.Minute)
+	*ptrCount1MIN++ //Inclrementa 1 Minuto
+	general.AppSyslog(syslog.LOG_DEBUG, "%s LOOP 1min..[%d]min\n", general.ThisFunction(), *ptrCount1MIN)
+
+	if (*ptrCount1MIN % includes.TIMEEXEC10MIN) == 0 {
+		general.AppSyslog(syslog.LOG_DEBUG, "%s LOOP 10 min..[%d]min\n", general.ThisFunction(), *ptrCount1MIN)
+		//Resfresh_status();
+		general.PrintContErros()
+	}
+
+} //Excuta_timer_control

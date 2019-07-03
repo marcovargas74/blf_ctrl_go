@@ -89,7 +89,7 @@ func StartLogger(isProg bool) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	defer AppLog.Close()
 	AppSyslog(syslog.LOG_INFO, "%s sys/Log  Iniciado\n", ThisFunction())
 }
 
@@ -168,6 +168,18 @@ func ClearContErros() {
 	StatusApp.GenericCont2 = 0
 }
 
+//PrintContErros IMprime os Erros do Applicativo
+func PrintContErros() {
+	if StatusApp.ErrorComSocket > 0 || StatusApp.ErrorAlloc > 0 {
+		AppSyslog(syslog.LOG_ERR, "%s <alloc>[%d]<socket>[%d]\n", ThisFunction(),
+			StatusApp.ErrorAlloc,     //Erros de alocação de memória;
+			StatusApp.ErrorComSocket, //Erros de cominicação com sockets
+		)
+
+	}
+
+} //void ClearContErros(void)
+
 //------------------ FIM ARQUIVO GO --------------------------------------
 
 /*
@@ -198,19 +210,6 @@ func ClearContErros() {
 
 
 
- /*
-  *
-  * /
- void PrintContErros(void)
- {
- //  memset(&StatusVoIP, 0, sizeof(Status_VoIP) );
-   //Incrementa Erro Caso Tenha Perdido Registro incrementaErro.
-   if ( StatusVoIP.ErrorComSocket || StatusVoIP.ErrorAlloc)
-	 app_syslog(LOG_CRIT, "%s->%s()<alloc>[%d]<socket>[%d]", __THIS_FILE__,
-		 StatusVoIP.ErrorAlloc,         //Erros de alocação de memória;
-		 StatusVoIP.ErrorComSocket      //Erros de cominicação com sockets;
-								   );
- }//void ClearContErros(void)
 
 
 

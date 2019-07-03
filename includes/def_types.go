@@ -20,7 +20,8 @@ type tKeys struct {
 	ListIndDNS []tPortDNS
 }
 
-type app struct {
+//TApp Tipo Aplicativo Variaveis Globais usados em todo o Aplicativo
+type TApp struct {
 	ThreadCount     int
 	RouterThread    int // Thread de recepção e roteamento das mensagens vindas do PABX
 	KillApplication byte
@@ -30,10 +31,13 @@ type app struct {
 	LevelLOGProg    int
 	IsLOGProg       bool
 	VersionSoftware string //Versao da aplicação Default
+	PidMain         int
 }
 
 //Estrutura de Contadores de Erro
-type tStatusVoip struct {
+
+//TstatusApp tipo status do Aplicativo
+type TstatusApp struct {
 	ErrorAlloc     byte //Erros de alocação de memória;
 	ErrorComSocket byte //Erros de cominicação com sockets;
 	GenericCont1   uint64

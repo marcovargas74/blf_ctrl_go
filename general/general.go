@@ -10,21 +10,37 @@ package general
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"log/syslog"
+	"os"
+	"os/exec"
 	"runtime"
 	"strings"
+	"syscall"
 
 	"github.com/marcovargas74/blf_ctrl_go/includes"
 )
 
 //AppLog Variavel usado no syslog
-var AppLog io.Writer
+var AppLog *syslog.Writer
 
-//StartGeneral é a mensagem de inicio do pacote General
-func StartGeneral() {
-	fmt.Println("genneral")
+//var AppLog io.Writer
+
+//AppLevel onde armazenado o nivel do syslog
+var AppLevel syslog.Priority
+
+//AppLogProg se Log Programado True
+var AppLogProg bool
+
+//StatusApp mostra os Erros da aplicacao
+var StatusApp includes.TstatusApp
+
+//Clear Limpa a Tela
+func Clear() {
+	//fmt.Println("\033[2J")
+	cmd := exec.Command("clear")
+	cmd.Stdout = os.Stdout
+	cmd.Run()
 }
 
 // ThisFunction return a string containing the file name, function name
@@ -59,33 +75,29 @@ func chopPath(original string) string {
  *sysLog.Debug("And this is a daemon emergency with demotag.")
  *log.Printf("%s sys/Log  Iniciado\n", ThisFunction())
  */
-func StartLogger() {
+func StartLogger(isProg bool) {
 	var err error
-	//App_ctrl.Level_LOG_Prog := syslog.LOG_DEBUG | syslog.LOG_LOCAL7
-	//App_ctrl.Is_LOG_Prog = true
 
-	level := syslog.LOG_DEBUG | syslog.LOG_LOCAL7
-	//var SysLog Write
+	AppLogProg = isProg
+	AppLevel = syslog.LOG_DEBUG | syslog.LOG_LOCAL7
 
-	AppLog, err = syslog.Dial("udp", "172.31.11.162:514", level, "app_blfctrl")
+	if isProg == false {
+		return
+	}
+
+	AppLog, err = syslog.Dial("udp", "172.31.11.162:514", AppLevel, "app_blfctrl")
 	if err != nil {
 		log.Fatal(err)
 	}
-	AppSyslog("%s sys/Log  Iniciado2\n", ThisFunction())
+
+	AppSyslog(syslog.LOG_INFO, "%s sys/Log  Iniciado\n", ThisFunction())
 }
 
 //LoggerClose Finish the Logger
 func LoggerClose() {
-	AppSyslog("%s {BLF_CTRL_FINISH}\n", ThisFunction())
-	//closelog();
+	AppSyslog(syslog.LOG_INFO, "%s {BLF_CTRL_FINISH}\n", ThisFunction())
+	AppLog.Close()
 }
-
-/*
-func App_SetLogLevel(isProg bool, priority int) {
-	//App_ctrl.Level_LOG_Prog = level
-	//App_ctrl.Is_LOG_Prog = isProg
-	//setlogmask (LOG_UPTO (level));
-}*/
 
 /* App_syslog
   *Aplicar o Padrao enm todas as Mensagens de LOG
@@ -96,45 +108,67 @@ func App_SetLogLevel(isProg bool, priority int) {
   * [%x x] = Entre Couchetes Valor da Variavel
 
 	icip_syslog( LOG_INFO ,"%s:(FUNC){Este eh umLOG de teste}<argument_1>[%d]:",THIS_FILE, arg1);
-    int app_syslog(int syslogpri, char *format, ...)
+  int app_syslog(int syslogpri, char *format, ...)
 */
 
 //AppSyslog mensagem de log Padrao
-func AppSyslog(format string, a ...interface{}) {
+func AppSyslog(syslogpri syslog.Priority, format string, a ...interface{}) {
 
-	//SYSLOG
-	fmt.Fprintf(AppLog, format, a...)
+	if syslogpri > AppLevel {
+		return
+	}
+
+	//Imprime informacoes na tela como prints
 	info := fmt.Sprintf(format, a...)
-
 	if includes.PRINTSYSLOG {
 		log.Printf("%v", info)
 	}
 
-	//fmt.Fprintf(sysLog, "%s sys/Log  Iniciado\n", ThisFunction())
-	/*
-			va_list args;
+	//SYSLOG INFO
+	if syslogpri == syslog.LOG_INFO {
+		AppLog.Info(info)
+		return
+	}
 
-		   if( (syslogpri > App_ctrl.Level_LOG_Prog) || (!App_ctrl.Is_LOG_Prog) )
-			return ECANCELLED;
+	//SYSLOG ERRO
+	if syslogpri == syslog.LOG_ERR {
+		AppLog.Err(info)
+		return
+	}
 
-		   va_start(args, format);
-		   vsyslog(syslogpri, format, args);
-		   _storage_func(args);
-		   va_end(args);
-
-
-		 #if PRINT_SYSLOG
-		   printf(format, args);
-		 #endif
-
-		   return SUCCESS;
-
-		   func Debug(format string, a ...interface{}) {
-		    _, file, line, _ := runtime.Caller(1)
-		    info := fmt.Sprintf(format, a...)
-
-		    log.Printf("[cgl] debug %s:%d %v", file, line, info)*/
+	//Nivel Debug
+	fmt.Fprintf(AppLog, format, a...)
 }
+
+//BoostPriority Define Prioridade da Thread
+func BoostPriority(priority int) {
+	err := syscall.Setpriority(0, os.Getpid(), priority)
+	if err != nil {
+		//log.print(err)
+		AppSyslog(syslog.LOG_ERR, "%s{FALHA NO ESCALADOR DE PRIORIDADE}<PID>[%d]<err>[%s]\n", ThisFunction(), os.Getpid(), err)
+	}
+	/*
+	  struct sched_param param;
+	  param.sched_priority = priority;
+	  if(sched_setscheduler(0, SCHED_RR, &param) == -1)
+	  {
+	    app_syslog( LOG_ERR, "%s->%s(){FALHA NO ESCALADOR DE PRIORIDADE }<pid>[%d]", __THIS_FILE__, getpid() );
+	    //exit(-1);
+	  }*/
+	AppSyslog(syslog.LOG_DEBUG, "%s{NOVO PROCESSO}<priority>[%d]<PID>[%d]\n", ThisFunction(), priority, os.Getpid())
+
+} //void boost_priority(void)
+
+// ClearContErros Limpa variaveis contadores de Erro
+func ClearContErros() {
+	//  memset(&StatusVoIP, 0, sizeof(Status_VoIP) );StatusVoIP
+	StatusApp.ErrorAlloc = 0     //Erros de alocação de memóriStatusVoIPa;
+	StatusApp.ErrorComSocket = 0 //Erros de cominicação com soStatusVoIPckets;
+	StatusApp.GenericCont1 = 0
+	StatusApp.GenericCont2 = 0
+}
+
+//------------------ FIM ARQUIVO GO --------------------------------------
 
 /*
  #include "defin.h"
@@ -160,36 +194,9 @@ func AppSyslog(format string, a ...interface{}) {
  #define _storage_func(args_x) NameArquivoGlobal = va_arg(args_x, char *); NameFuncaoGlobal = va_arg(args_x, char *) ;
 
 
- //Define Prioridade da Thread
- void boost_priority(int priority)
- {
-   struct sched_param param;
-
-   param.sched_priority = priority;
-   if(sched_setscheduler(0, SCHED_RR, &param) == -1)
-	 {
-	   app_syslog( LOG_ERR, "%s->%s(){FALHA NO ESCALADOR DE PRIORIDADE }<pid>[%d]", __THIS_FILE__, getpid() );
-	   //exit(-1);
-	 }
-   app_syslog( LOG_DEBUG, "%s->%s{NOVO PROCESSO}<_priority>[%d]<PID>[%d]", __THIS_FILE__, param.sched_priority, getpid() );
-
- }//void boost_priority(void)
 
 
 
-
-
- /*
-  *
-  * /
- void ClearContErros(void)
- {
-   //  memset(&StatusVoIP, 0, sizeof(Status_VoIP) );
-   StatusVoIP.ErrorAlloc = 0 ;          //Erros de alocação de memória;
-   StatusVoIP.ErrorComSocket = 0;       //Erros de cominicação com sockets;
-   StatusVoIP.Generic_cont1= 0;
-   StatusVoIP.Generic_cont2= 0;
- }//void ClearContErros(void)
 
  /*
   *

@@ -9,6 +9,7 @@ package comm
  *******************************************************************/
 
 import (
+	"encoding/binary"
 	"log/syslog"
 	"net"
 	"os"
@@ -17,6 +18,19 @@ import (
 	"github.com/marcovargas74/blf_ctrl_go/general"
 	"github.com/marcovargas74/blf_ctrl_go/includes"
 )
+
+/*
+Infos
+t = T{}
+	err := binary.Read(buf, binary.BigEndian, &t)
+
+	//var serverStatus includes.TsockStatusFromServer
+*/
+
+//Declaração de Variáveis globais
+
+//ClientConn Variavel usado para se conectar ao remoto
+var ClientConn net.Conn
 
 /*
 
@@ -88,8 +102,9 @@ func AguardaComunicacaoComRemoto(isConnected *bool, loopMain *bool) int {
  * nc -lU /tmp/server.sock && rm /tmp/server.sock
  */
 func initRemoteCOMM() {
-	//struct sockStatusFromServer serverStatus;
-	//struct sockCommandFromClient clientCommand;
+	//var serverStatus includes.TsockStatusFromServer
+	var clientCommand includes.TsockCommandFromClient
+	var errCon error
 	//int result, nReadSock;
 	//byte cntFalha = 0;
 
@@ -97,18 +112,60 @@ func initRemoteCOMM() {
 	//var isConnected = false
 	//for ok := true; ok; ok = (isConnected == false) {
 	for {
-		socket, erroCon := net.Dial(includes.SERVERTYPE, includes.SERVERPATH)
-		if erroCon == nil {
+		ClientConn, errCon = net.Dial(includes.SERVERTYPE, includes.SERVERPATH)
+		if errCon == nil {
 			//isConnected = true
-			defer socket.Close()
 			break
 		}
-		general.AppSyslog(syslog.LOG_ERR, "%s{Can't access device}<err>[%s]\n", general.ThisFunction(), erroCon)
+		//defer ClientConn.Close()
+		general.AppSyslog(syslog.LOG_ERR, "%s{Can't access device}<err>[%s]\n", general.ThisFunction(), errCon)
 		time.Sleep(time.Second * 3)
 	}
 
-	general.AppSyslog(syslog.LOG_INFO, "%s {SUCCESS TO CONNECTION IN SERVER}\n", general.ThisFunction())
+	clientCommand.Command = byte(includes.SOCKETREGISTER)
+	clientCommand.Client = byte(includes.BLFCTRL)
 
+	//msgToSend := []byte(fmt.Sprintf("%v", clientCommand))
+
+	//	var msgToSend []byte
+	//	buf = append(buf, " m="...)
+	//	msgToSend = append(msgToSend, clientCommand.Command)
+	//	msgToSend = append(msgToSend, clientCommand.Client)
+
+	msgToSend := []byte{clientCommand.Command, clientCommand.Client}
+
+	for {
+
+		// registra o nome da Aplicaçao (BLFCTRL) no servidor
+		EnviaDadosPABXCOMM(msgToSend, includes.SIZEsockCommandFromClient)
+		//result, err := ioutil.ReadAll(conn)
+		//checkError(err)
+		//fmt.Println(string(result))
+
+		//Receber status da conexão
+		//var buf [512]byte
+		//n, err := conn.Read(buf[0:])
+
+		buff := make([]byte, 10)
+		nReadSock, errRec := ClientConn.Read(buff)
+		if errRec != nil {
+			general.AppSyslog(syslog.LOG_ERR, "%s{Can't received message}<err>[%s]\n", general.ThisFunction(), errRec)
+			//return
+		}
+
+		//TODO teste
+		//var serverStatus includes.TsockStatusFromServer
+		//serverStatus := includes.TsockStatusFromServer{}
+		//err := binary.Read(buff, binary.BigEndian, &serverStatus)
+
+		if nReadSock == includes.SIZEsockStatusFromServer {
+			general.AppSyslog(syslog.LOG_INFO, "%s {SUCCESS TO CONNECTION IN SERVER} [%d]<buff>[%s] \n", general.ThisFunction(), nReadSock, buff)
+			break
+		}
+
+		general.AppSyslog(syslog.LOG_INFO, "%s {SERVER NOT RECEIVED ALL DATA}<nRead>[%d]\n", general.ThisFunction(), nReadSock)
+		time.Sleep(time.Second * 3)
+	}
 	/*
 
 		   // prepara o socket do cliente
@@ -155,6 +212,7 @@ func initRemoteCOMM() {
 //vindas do PABX via socket
 func RemoteCOMMsocket(pidApp *int, isConnected *bool, iskillApp *bool) int {
 	//  TAG_MESSAGE_VOIP  MsgRxSocket;
+	msgRxSocket := make([]byte, 1500)
 	//  word aplicacao;
 
 	*pidApp = os.Getpid()
@@ -162,11 +220,24 @@ func RemoteCOMMsocket(pidApp *int, isConnected *bool, iskillApp *bool) int {
 
 	initRemoteCOMM()    //Inicia socket de comunicação com processo ROUTER
 	*isConnected = true //PABXCOMMConnected = TRUE;
+
+	SendFrmBroadCast(1)
 	//for ok := true; ok; ok = (*iskillApp == false) {
 	for {
 		//next_Frame:
 		//sem_wait(&bin_semaforoSocket);
-		general.AppSyslog(syslog.LOG_DEBUG, "%s {recebendo dados from PABXCOMM}\n", general.ThisFunction())
+		//general.AppSyslog(syslog.LOG_DEBUG, "%s {recebendo dados from PABXCOMM}\n", general.ThisFunction())
+
+		//msgRxSocket := make([]byte, 1500)
+		nReadSock, errRec := ClientConn.Read(msgRxSocket)
+		if errRec != nil {
+			//general.AppSyslog(syslog.LOG_ERR, "%s{Can't received message}<err>[%s]\n", general.ThisFunction(), errRec)
+			time.Sleep(time.Second * 3)
+			continue //return
+		}
+
+		general.AppSyslog(syslog.LOG_INFO, "%s {recebeu dados} [%d]<buff>[%s] \n", general.ThisFunction(), nReadSock, msgRxSocket)
+
 		/*
 					   memset (&MsgRxSocket, 0, SIZE_HEADER );          // limpa a estrutura (comum nas listas de discussão)
 					   if( RecebeDadosPABXCOMM(&MsgRxSocket) != SUCCESS ) {
@@ -179,7 +250,7 @@ func RemoteCOMMsocket(pidApp *int, isConnected *bool, iskillApp *bool) int {
 			   		   if ( TrataMensagemRecebida( (TAG_MESSAGE_VOIP*)&MsgRxSocket ) != SUCCESS ) {
 			   		       app_syslog( LOG_WARNING ,"%s->%s(){VoIP recebeu mensagem com destino Invalido}<iDNS>[%d]<MSG>[%d]", __THIS_FILE__, aplicacao, MsgRxSocket.N_MsgLow);
 						}*/
-		time.Sleep(time.Second * 3)
+		//time.Sleep(time.Second * 3)
 
 		//Termina caso App mandou terminar
 		if *iskillApp == true {
@@ -189,14 +260,144 @@ func RemoteCOMMsocket(pidApp *int, isConnected *bool, iskillApp *bool) int {
 	} //for(LOOP)
 
 	general.AppSyslog(syslog.LOG_INFO, "%s {thread communication - FINISH!}\n", general.ThisFunction())
+	defer ClientConn.Close()
 	*isConnected = false
 	return includes.SUCCESS
 } //void *thread_socket(void *arg)
 
-/*
+//EnviaDadosPABXCOMM Função que envia dados ao socket
+func EnviaDadosPABXCOMM(umaMsg []byte, sizeFrame int) {
+	//var totalSend int
 
+	if sizeFrame == 0 {
+		return
+	}
 
+	general.AppSyslog(syslog.LOG_INFO, "%s {send data}\n", general.ThisFunction())
 
+	//restaSend := sizeFrame;
+	//for  (totalSend < sizeFrame){
+	//for {
+	//_, errSend := ClientConn.Write([]byte("Message received."))
+	numSend, errSend := ClientConn.Write(umaMsg)
+	if errSend != nil {
+		general.AppSyslog(syslog.LOG_ERR, "%s{Can't send message}<err>[%s]\n", general.ThisFunction(), errSend)
+		return
+	}
+
+	general.AppSyslog(syslog.LOG_ERR, "%s{mensagem EnviadaOK}<size>[%d]<msg>[%s]\n", general.ThisFunction(), numSend, umaMsg)
+	/*
+		restaSend := sizeFrame
+		for totalSend < sizeFrame {
+			nWrite := send(client_sockfd, umaMsg+totalSend, restaSend, 0) // encaminha ao destino    n = send (socket_descriptor, buffer+total, bytes_resta, 0);
+			if (isErrorIn_Socket(nWrite, __LINE__))
+			{
+			  app_syslog(LOG_CRIT, "%s->%s(1){Almost already connection}[%d]", __THIS_FILE__, nWrite  );
+			  return;
+			}
+			totalSend += nWrite
+			restaSend -= nWrite
+		}
+	*/
+
+} //void EnviaDadosAoSocket(char *umaMsg)
+
+/***********************************************************************
+* Entrada: Aplicacao Destino, Tipo da mensagem, numero da Mensagem(N_MSG),
+*                  ponteiro para a strutura d Mensagem(N_MSG), tamanho da N_MSG)
+***********************************************************************/
+
+//FormataFrameSEND Função formata Frame para ser enviada ao PABXCOMM
+func FormataFrameSEND(aplicDest uint16, tipo byte, nMsg uint16, pos byte, sel byte, ptrStruct []byte, sizeStruct int) {
+	/*TAG_MESSAGE_VOIP ptrFrame;
+	  int count =0;
+	  extern BOOL IN_TEST;
+
+	  //........................Cabeçalho do FRAME....................................
+	   WordToByte(&ptrFrame.AplicHigh, aplicDest );     // identificação da aplicação destino da mensagem;
+	   WordToByte(&ptrFrame.PayloadSizeH,( SIZE_HEADER_MSG + sizeStruct)  ); // número de bytes no data + Header da mensagem;
+
+	  //........................Cabeçalho do PayLoad....................................
+	   ptrFrame.Tipo      = tipo;                                            // TIPO - Tipo de mensagem
+	   WordToByteInv(&ptrFrame.N_MsgLow, nMsg);              // N_MSG - Número da mensagem -
+
+	   ptrFrame.Position = pos;
+	   ptrFrame.Select   = sel;
+	   memcpy( &ptrFrame.Dados, ptrStruct, sizeStruct );
+
+	   EnviaDadosPABXCOMM((byte*)&ptrFrame, (SIZE_HEADER_SOCKET + SIZE_HEADER_MSG + sizeStruct) );
+	*/
+	var ptrFrame TAGMESSAGEVOIP
+
+	//WordToByte(&ptrFrame.AplicHigh, aplicDest );     // identificação da aplicação destino da mensagem;
+	ptrFrame.Aplic = aplicDest // identificação da aplicação destino da mensagem;
+
+	//WordToByte(&ptrFrame.PayloadSizeH,( SIZE_HEADER_MSG + sizeStruct)  ); // número de bytes no data + Header da mensagem;
+	ptrFrame.PayloadSize = uint16(includes.SIZEHEADERMSG + sizeStruct) // número de bytes no data + Header da mensagem;
+
+	//........................Cabeçalho do PayLoad....................................
+	ptrFrame.Tipo = tipo // TIPO - Tipo de mensagem
+
+	//WordToByteInv(&ptrFrame.N_MsgLow, nMsg);              // N_MSG - Número da mensagem -
+	ptrFrame.NMsg = nMsg // N_MSG - Número da mensagem -
+
+	ptrFrame.Position = pos
+	ptrFrame.Select = sel
+
+	general.AppSyslog(syslog.LOG_DEBUG, "%s<HEADER><Ap>[%d]<Py>[%d]<Tp>[%d]<Ms>[%d]<Ps>[%d]<Sl>[%d]\n", general.ThisFunction(),
+		ptrFrame.Aplic,
+		ptrFrame.PayloadSize,
+		ptrFrame.Tipo,
+		ptrFrame.NMsg,
+		ptrFrame.Position,
+		ptrFrame.Select)
+
+	//memcpy( &ptrFrame.Dados, ptrStruct, sizeStruct );
+	//ptrFrame.Dados = append(ptrFrame.Dados, ptrStruct)
+	//ptrFrame.Dados = []byte(ptrFrame.Dados)
+	/*
+		msgToSend := []byte{
+			byte(ptrFrame.Aplic),
+			byte(ptrFrame.PayloadSize),
+			ptrFrame.Tipo,
+			byte(ptrFrame.NMsg),
+			ptrFrame.Select,
+			ptrFrame.Position,
+		}
+		copy(msgToSend, ptrStruct)
+	*/
+
+	msgToSend := make([]byte, 10)
+
+	//Header App e PayLoad
+	binary.BigEndian.PutUint16(msgToSend[0:], ptrFrame.Aplic)
+	binary.BigEndian.PutUint16(msgToSend[2:], ptrFrame.PayloadSize)
+
+	//Header da Mensagem Tipo e Mensagem msgToSend[3] = ptrFrame.Tipo
+	msgToSend[3] = 1 //; ptrFrame.Tipo
+	//msgToSend = append(msgToSend, ptrFrame.Tipo)
+	binary.BigEndian.PutUint16(msgToSend[4:], ptrFrame.NMsg)
+	msgToSend = append(msgToSend, ptrFrame.Select)
+	msgToSend = append(msgToSend, ptrFrame.Position)
+
+	//BODY dado
+	//msgToSend = append(msgToSend, ptrFrame.Tipo)
+
+	copy(msgToSend, ptrStruct)
+	//msgToSend := []byte{byte(ptrFrame.Aplic), ptrFrame.Tipo}
+
+	/*Aplic uint16 //parte mais significativa, da identificação da aplicação destino da mensagem;
+	PayloadSize uint16 //parte mais significativa,  do número de bytes contidos no Payload da mensagem;
+	Tipo byte // TIPO - Tipo de mensagem recebida - Mensagem de configuração, sinalização, dados e alarme
+	NMsg     uint16 // N_MSG - Número da mensagem - Parte Menos Significativa
+	Select   byte   // parte integrante do endereço de hardware dos ramais e juntores IP, no PABX.
+	Position byte   // parte integrante do endereço de hardware dos ramais e juntores IP, no PABX.
+	Dados []byte //Dados - Informação contida na mensagem*/
+
+	sizeMsg := includes.SIZEHEADERSOCKET + includes.SIZEHEADERMSG + sizeStruct
+
+	EnviaDadosPABXCOMM(msgToSend, sizeMsg)
+}
 
 /*
 
@@ -415,7 +616,7 @@ func RemoteCOMMsocket(pidApp *int, isConnected *bool, iskillApp *bool) int {
  * Entrada: Aplicacao Destino, Tipo da mensagem, numero da Mensagem(N_MSG),
  *                  ponteiro para a strutura d Mensagem(N_MSG), tamanho da N_MSG)
  *********************************************************************** /
- void FormataFrameSEND(word aplicDest,byte tipo ,word nMsg, byte pos, byte sel, byte *ptrStruct, word sizeStruct)
+ void (word aplicDest,byte tipo ,word nMsg, byte pos, byte sel, byte *ptrStruct, word sizeStruct)
  {
    TAG_MESSAGE_VOIP ptrFrame;
    int count =0;

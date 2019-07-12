@@ -52,3 +52,86 @@ type tStatusPIDVoIP struct {
 	PidMain           int //Pid da Thread Principal;
 	PidPABXCOMMsocket int //Pid da Thread de comunicação com o PABX;
 }
+
+//TsockCommandFromClient ESTRUTURAS SOCKET
+type TsockCommandFromClient struct {
+	Command byte
+	Client  byte
+	Vago    byte
+}
+
+//SIZEsockCommandFromClient tamanho da struct
+const SIZEsockCommandFromClient = 3
+
+// TsockStatusFromServer Tipo status do socket
+type TsockStatusFromServer struct {
+	Status byte
+	Vago   byte
+}
+
+//SIZEsockStatusFromServer tamanho da struct
+const SIZEsockStatusFromServer = 2
+
+/*-----------------DEFINE ENUMS -----------------------------------------*/
+
+type tEnum8 byte
+type tEnum16 uint16
+
+//ID dos clientes usado para se conectar no PBXCOM
+const (
+	VOIPMANAGER tEnum8 = iota
+	CABLEMANAGER
+	APPVOIP
+	APPICTI
+	BOARDCMD
+	ICIPFAXVIRTUAL
+	BLFCTRL
+)
+
+//Status do Socket do Cliente
+const (
+	SOCKETUNREGISTER tEnum8 = iota
+	SOCKETREGISTER
+	SOCKETSTATUS
+)
+
+//Tipo de clientes usado para rotiar mensagens entre processos
+const (
+	AddrServicos        tEnum16 = 0   // 0 endereço dos serviços 0001 a 0999
+	AddrIPBoardManage   tEnum16 = 137 // gerencia da placa ICIP (lado PABX)
+	AddrAPP             tEnum16 = 20000
+	AddrAppVoipManager  tEnum16 = AddrAPP + 1 // Gerencia Voip
+	AddrAppWeb          tEnum16 = AddrAPP + 2 // servidor web embarcado
+	AddrAppEmail        tEnum16 = AddrAPP + 3 // cliente de email embarcado
+	AddrAppSnmp         tEnum16 = AddrAPP + 4 // agente SNMP embarcado
+	AddrAppCableManager tEnum16 = AddrAPP + 5 // agente SNMP embarcado
+	AddrAppPbxComm      tEnum16 = AddrAPP + 6 //20006
+	AddrAppIPMom        tEnum16 = AddrAPP + 7
+	AddrAppFaxManager   tEnum16 = AddrAPP + 8
+	AddrAppBlfCtrl      tEnum16 = AddrAPP + 9
+)
+
+// Tipo: tipos de mensagem do protocolo entre PABX e placa IP (1 byte)
+const (
+	TypeConfiguracao tEnum8 = iota
+	TypeSinalizacao
+	TypeDados
+	TypeAlarme
+)
+
+/*
+const (
+      REGISTERFAILED tEnum8 =iota
+      REGISTERSUCCESSSFULL
+)*/
+
+//TIPOS DE MENSAGEM TROCADAS ENTRE PROCESSOS
+const (
+	VoxFrmstartup   tEnum16 = 0
+	VoxFrmSubscurbe tEnum16 = 12
+	VoxFrmNotify
+	VoxFrmNotifyBLF              tEnum16 = 20
+	VoxFrmDesligaDevice          tEnum16 = 222
+	VoxFrmSocketUnregisterClient tEnum16 = 500
+	VoxFrmBroadCast              tEnum16 = 650
+)

@@ -116,6 +116,7 @@ func executaTimerControl(ptrCountLOOP *uint64, ptrCount1MIN *uint64) {
 	time.Sleep(time.Minute)
 	*ptrCount1MIN++ //Inclrementa 1 Minuto
 	general.AppSyslog(syslog.LOG_DEBUG, "%s LOOP 1min..[%d]min\n", general.ThisFunction(), *ptrCount1MIN)
+	comm.SendFrmBroadCast(1)
 
 	if (*ptrCount1MIN % includes.TIMEEXEC10MIN) == 0 {
 		general.AppSyslog(syslog.LOG_DEBUG, "%s LOOP 10 min..[%d]min\n", general.ThisFunction(), *ptrCount1MIN)

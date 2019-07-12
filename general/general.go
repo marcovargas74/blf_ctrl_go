@@ -85,7 +85,7 @@ func StartLogger(isProg bool) {
 		return
 	}
 
-	AppLog, err = syslog.Dial("udp", "172.31.11.162:514", AppLevel, "app_blfctrl")
+	AppLog, err = syslog.Dial("udp", includes.SERVERLOG, AppLevel, "app_blfctrl")
 	if err != nil {
 		log.Fatal(err)
 	}

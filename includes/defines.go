@@ -2,7 +2,7 @@ package includes
 
 const (
 	//Version of application
-	Version = "19.07.12"
+	Version = "19.07.15"
 
 	//SUCCESS return when a function is OK
 	SUCCESS = 0 // Status está OK.

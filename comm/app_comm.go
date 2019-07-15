@@ -309,38 +309,16 @@ func EnviaDadosPABXCOMM(umaMsg []byte, sizeFrame int) {
 
 //FormataFrameSEND Função formata Frame para ser enviada ao PABXCOMM
 func FormataFrameSEND(aplicDest uint16, tipo byte, nMsg uint16, pos byte, sel byte, ptrStruct []byte, sizeStruct int) {
-	/*TAG_MESSAGE_VOIP ptrFrame;
-	  int count =0;
-	  extern BOOL IN_TEST;
-
-	  //........................Cabeçalho do FRAME....................................
-	   WordToByte(&ptrFrame.AplicHigh, aplicDest );     // identificação da aplicação destino da mensagem;
-	   WordToByte(&ptrFrame.PayloadSizeH,( SIZE_HEADER_MSG + sizeStruct)  ); // número de bytes no data + Header da mensagem;
-
-	  //........................Cabeçalho do PayLoad....................................
-	   ptrFrame.Tipo      = tipo;                                            // TIPO - Tipo de mensagem
-	   WordToByteInv(&ptrFrame.N_MsgLow, nMsg);              // N_MSG - Número da mensagem -
-
-	   ptrFrame.Position = pos;
-	   ptrFrame.Select   = sel;
-	   memcpy( &ptrFrame.Dados, ptrStruct, sizeStruct );
-
-	   EnviaDadosPABXCOMM((byte*)&ptrFrame, (SIZE_HEADER_SOCKET + SIZE_HEADER_MSG + sizeStruct) );
-	*/
 	var ptrFrame TAGMESSAGEVOIP
 
-	//WordToByte(&ptrFrame.AplicHigh, aplicDest );     // identificação da aplicação destino da mensagem;
-	ptrFrame.Aplic = aplicDest // identificação da aplicação destino da mensagem;
-
-	//WordToByte(&ptrFrame.PayloadSizeH,( SIZE_HEADER_MSG + sizeStruct)  ); // número de bytes no data + Header da mensagem;
+	//Tamanho Total do Frame a ser enviado
+	sizeMsg := includes.SIZEHEADERSOCKET + includes.SIZEHEADERMSG + sizeStruct
+	ptrFrame.Aplic = aplicDest                                         // identificação da aplicação destino da mensagem;
 	ptrFrame.PayloadSize = uint16(includes.SIZEHEADERMSG + sizeStruct) // número de bytes no data + Header da mensagem;
 
 	//........................Cabeçalho do PayLoad....................................
 	ptrFrame.Tipo = tipo // TIPO - Tipo de mensagem
-
-	//WordToByteInv(&ptrFrame.N_MsgLow, nMsg);              // N_MSG - Número da mensagem -
 	ptrFrame.NMsg = nMsg // N_MSG - Número da mensagem -
-
 	ptrFrame.Position = pos
 	ptrFrame.Select = sel
 
@@ -352,49 +330,19 @@ func FormataFrameSEND(aplicDest uint16, tipo byte, nMsg uint16, pos byte, sel by
 		ptrFrame.Position,
 		ptrFrame.Select)
 
-	//memcpy( &ptrFrame.Dados, ptrStruct, sizeStruct );
-	//ptrFrame.Dados = append(ptrFrame.Dados, ptrStruct)
-	//ptrFrame.Dados = []byte(ptrFrame.Dados)
-	/*
-		msgToSend := []byte{
-			byte(ptrFrame.Aplic),
-			byte(ptrFrame.PayloadSize),
-			ptrFrame.Tipo,
-			byte(ptrFrame.NMsg),
-			ptrFrame.Select,
-			ptrFrame.Position,
-		}
-		copy(msgToSend, ptrStruct)
-	*/
-
-	msgToSend := make([]byte, 10)
-
-	//Header App e PayLoad
+	//Prepara mensagem
+	msgToSend := make([]byte, sizeMsg)
+	//Header App Destino e PayLoad
 	binary.BigEndian.PutUint16(msgToSend[0:], ptrFrame.Aplic)
 	binary.BigEndian.PutUint16(msgToSend[2:], ptrFrame.PayloadSize)
 
-	//Header da Mensagem Tipo e Mensagem msgToSend[3] = ptrFrame.Tipo
-	msgToSend[3] = 1 //; ptrFrame.Tipo
-	//msgToSend = append(msgToSend, ptrFrame.Tipo)
-	binary.BigEndian.PutUint16(msgToSend[4:], ptrFrame.NMsg)
-	msgToSend = append(msgToSend, ptrFrame.Select)
-	msgToSend = append(msgToSend, ptrFrame.Position)
-
+	//Tipo e numero da Mensagem
+	msgToSend[4] = byte(ptrFrame.Tipo)
+	binary.LittleEndian.PutUint16(msgToSend[5:], ptrFrame.NMsg)
+	msgToSend[7] = ptrFrame.Select
+	msgToSend[8] = ptrFrame.Position
 	//BODY dado
-	//msgToSend = append(msgToSend, ptrFrame.Tipo)
-
-	copy(msgToSend, ptrStruct)
-	//msgToSend := []byte{byte(ptrFrame.Aplic), ptrFrame.Tipo}
-
-	/*Aplic uint16 //parte mais significativa, da identificação da aplicação destino da mensagem;
-	PayloadSize uint16 //parte mais significativa,  do número de bytes contidos no Payload da mensagem;
-	Tipo byte // TIPO - Tipo de mensagem recebida - Mensagem de configuração, sinalização, dados e alarme
-	NMsg     uint16 // N_MSG - Número da mensagem - Parte Menos Significativa
-	Select   byte   // parte integrante do endereço de hardware dos ramais e juntores IP, no PABX.
-	Position byte   // parte integrante do endereço de hardware dos ramais e juntores IP, no PABX.
-	Dados []byte //Dados - Informação contida na mensagem*/
-
-	sizeMsg := includes.SIZEHEADERSOCKET + includes.SIZEHEADERMSG + sizeStruct
+	copy(msgToSend[9:], ptrStruct)
 
 	EnviaDadosPABXCOMM(msgToSend, sizeMsg)
 }

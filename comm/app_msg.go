@@ -93,7 +93,7 @@ func SendFrmBroadCast(state byte) {
 	msgToSend := []byte{frmBroadcast.MotivoBroadCast}
 
 	//CreateMessageSEND(ADDR_ICIP_PBXCOM, TYPE_SINALIZACAO, VOX_FRM_BROADCAST, (char *)&frmBroadcast, SIZE_TAG_BROADCAST );
-	FormataFrameSEND(uint16(includes.AddrAppPbxComm), byte(includes.TypeSinalizacao), uint16(includes.VoxFrmBroadCast), includes.VOIDPOSITION, includes.VOIDSELECT, msgToSend, len(msgToSend))
+	FormataFrameSEND(uint16(includes.AddrAppVoipManager), byte(includes.TypeAlarme), uint16(includes.VoxFrmBroadCast), includes.VOIDPOSITION, includes.VOIDSELECT, msgToSend, len(msgToSend))
 
 	//return SUCCESS
 }

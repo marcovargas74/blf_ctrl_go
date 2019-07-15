@@ -11,5 +11,5 @@ Copy release to path
 cp ~/projetos-go/src/github.com/marcovargas74/blf_ctrl_go/blf_ctrl  ~/UNNITI_GIT/packetsAPP/blf_ctrl/zynq/ 
 
 compila para Arm
-env GOOS=linux GOARCH=arm GOARM=5 go build
-env GOOS=linux GOARCH=arm go build
+env GOOS=linux GOARCH=arm GOARM=5 go build 
+env GOOS=linux GOARCH=arm go build -o blf_ctrl

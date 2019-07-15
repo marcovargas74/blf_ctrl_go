@@ -114,9 +114,9 @@ const (
 // Tipo: tipos de mensagem do protocolo entre PABX e placa IP (1 byte)
 const (
 	TypeConfiguracao tEnum8 = iota
-	TypeSinalizacao
-	TypeDados
-	TypeAlarme
+	TypeSinalizacaot tEnum8 = iota
+	TypeDados        tEnum8 = iota
+	TypeAlarme       tEnum8 = iota
 )
 
 /*
